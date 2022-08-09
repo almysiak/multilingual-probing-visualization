@@ -147,7 +147,8 @@ def run_report_results(args, probe, dataset, model, loss, reporter, regimen):
   By default, does so only for dev set.
   Requires a simple code change to run on the test set.
   """
-  probe_params_path = os.path.join(args['reporting']['root'],args['probe']['params_path'])
+  probe_params_path = os.path.join(args['reporting']['root'], args['probe']['params_path'])
+  print("PATH", probe_params_path)
 
   dev_dataloader = dataset.get_dev_dataloader()
   try:
@@ -259,4 +260,4 @@ if __name__ == '__main__':
   yaml_args['device'] = device
   yaml_args['train_probe'] = cli_args.train_probe
   yaml_args['did_train'] = (os.path.exists(os.path.join(yaml_args['reporting']['root'], yaml_args['probe']['params_path'])))
-  execute_experiment(yaml_args, train_probe=cli_args.train_probe, report_results=cli_args.report_results)
+  execute_experiment(yaml_args, train_probe=cli_args.train_probe > 0, report_results=cli_args.report_results > 0)

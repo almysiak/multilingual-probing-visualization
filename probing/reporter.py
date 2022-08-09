@@ -663,14 +663,14 @@ class WordPairReporter(Reporter):
             if poses[idx] == 'ADJ' and poses[head_idx] == 'NOUN':
                 valid = True
                 for i in range(min(idx, head_idx)+1, max(idx, head_idx)): # check that all words in between are adjectives or adverbs
-                  print(words[i])
+                  # print(words[i])
                   if poses[i] not in ('ADJ', 'ADV'):
                      valid = False
                      break
                 if valid:
                   if head_idx > idx:
                     total_pre_adj += 1
-                    print(correct_pre_adj, pred_edges, idx, head_idx)
+                    # print(correct_pre_adj, pred_edges, idx, head_idx)
                     correct_pre_adj += (tuple(sorted([idx, head_idx])) in pred_edges)
                   else:
                     total_post_adj += 1

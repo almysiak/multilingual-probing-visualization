@@ -69,11 +69,12 @@ class SimpleDataset:
     dev_observations = self.load_keyed_conll_dataset(root_path, dev_path, skip_lines=False, keys=dev_keys)
     test_observations = [] # self.load_keyed_conll_dataset(root_path, test_path, skip_lines=False, keys=test_keys)
 
-    train_embeddings_path = os.path.join(self.args['dataset']['embeddings']['root'],
+    # TODO a more permanent fix that allows the keys to be None
+    train_embeddings_path = os.path.join(self.args['dataset']['embeddings']['root'], train_keys[0],
         self.args['dataset']['embeddings']['train_path'])
-    dev_embeddings_path = os.path.join(self.args['dataset']['embeddings']['root'],
+    dev_embeddings_path = os.path.join(self.args['dataset']['embeddings']['root'], dev_keys[0],
         self.args['dataset']['embeddings']['dev_path'])
-    test_embeddings_path = os.path.join(self.args['dataset']['embeddings']['root'],
+    test_embeddings_path = os.path.join(self.args['dataset']['embeddings']['root'], test_keys[0],
         self.args['dataset']['embeddings']['test_path'])
     train_observations = self.optionally_add_embeddings(train_observations, train_embeddings_path, skip_lines=True, keys=train_keys) if self.args['train_probe'] else []
     dev_observations = self.optionally_add_embeddings(dev_observations, dev_embeddings_path, keys=dev_keys)

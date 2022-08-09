@@ -13,16 +13,16 @@ dataset:
      - langs
      - embeddings
   corpus:
-    root: /u/scr/ethanchi/langs
+    root: /home/amysiak/multilingual-probing-visualization/data/conllu
     train_path: train.conllu
     dev_path: dev.conllu
     test_path: test.conllu 
   embeddings:
     type: token #(token,subword)
-    root: /u/scr/ethanchi/hdf5
-    train_path: train-multilingual.hdf5
-    dev_path: dev-multilingual.hdf5
-    test_path: test-multilingual.hdf5
+    root: /home/amysiak/multilingual-probing-visualization/data/hdf5
+    train_path: train.hdf5
+    dev_path: dev.hdf5
+    test_path: test.hdf5
   keys:
     train: ['en']
     dev: ['en']
@@ -46,7 +46,7 @@ probe_training:
   epochs: 30
   loss: L1
 reporting:
-  root: /u/scr/ethanchi/probingOutputs 
+  root: /home/amysiak/multilingual-probing-visualization/probingOutputs 
   observation_paths:
     train_path: train.observations
     dev_path: dev.observations

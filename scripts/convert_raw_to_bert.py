@@ -17,14 +17,18 @@ import h5py
 import numpy as np
 from tqdm import tqdm
 
-RANDOM_PATH =
+RANDOM_PATH = "" #TODO
 
 argp = ArgumentParser()
 argp.add_argument('input_path')
 argp.add_argument('output_path')
 argp.add_argument('bert_model', help='base, large, or multilingual')
 argp.add_argument('language_code')
+argp.add_argument('--tokenize_full', default=-1, type=int,
+    help='Set to train a new probe.; ')
 args = argp.parse_args()
+
+DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 # Load pre-trained model tokenizer (vocabulary)
 # Crucially, do not do basic tokenization; PTB is tokenized. Just do wordpiece tokenization.
@@ -61,20 +65,25 @@ elif args.bert_model == "large-uncased":
 else:
   raise ValueError("BERT model must be base, large, multilingual, or multilingual-randomized")
 
+model = model.to(DEVICE)
 model.eval()
 
 with h5py.File(args.output_path, 'a') as fout:
   for index, line in tqdm(enumerate(open(args.input_path))):
     line = line.strip() # Remove trailing characters
     line = '[CLS] ' + line + ' [SEP]'
+    if args.tokenize_full == 1:
+      # TODO does this even work?
+      tokenized_text = tokenizer.tokenize(line)
+    else:
+      tokenized_text = tokenizer.wordpiece_tokenizer.tokenize(line)
 
-    tokenized_text = tokenizer.wordpiece_tokenizer.tokenize(line)
     indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
     segment_ids = [1 for x in tokenized_text]
 
     # Convert inputs to PyTorch tensors
-    tokens_tensor = torch.tensor([indexed_tokens])
-    segments_tensors = torch.tensor([segment_ids])
+    tokens_tensor = torch.tensor([indexed_tokens]).to(DEVICE)
+    segments_tensors = torch.tensor([segment_ids]).to(DEVICE)
 
     with torch.no_grad():
         encoded_layers, _ = model(tokens_tensor, segments_tensors)
@@ -85,6 +94,6 @@ with h5py.File(args.output_path, 'a') as fout:
     except RuntimeError:
       dset = fout[key]
 
-    dset[:,:,:] = np.vstack([np.array(x) for x in encoded_layers])
+    dset[:,:,:] = np.vstack([np.array(x.cpu()) for x in encoded_layers])
 
   print("Current keys are: ", ", ".join(fout.keys()))
