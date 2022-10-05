@@ -34,6 +34,6 @@ for line in open(args.input_conll_filepath):
     if '-' in items[0]:
       l, r = [int(x) for x in items[0].split('-')]
       toRemove = r - l + 1
-    buf.append(line.split('\t')[1])
+    buf.append(line.split('\t')[2])
 if buf:
     sys.stdout.write(' '.join(buf) + '\n')

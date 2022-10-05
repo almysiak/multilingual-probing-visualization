@@ -25,7 +25,7 @@ argp.add_argument('output_path')
 argp.add_argument('bert_model', help='base, large, or multilingual')
 argp.add_argument('language_code')
 argp.add_argument('--tokenize_full', default=-1, type=int,
-    help='Set to train a new probe.; ')
+    help='Set to use the full tokenizer')
 args = argp.parse_args()
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -79,6 +79,8 @@ with h5py.File(args.output_path, 'a') as fout:
       tokenized_text = tokenizer.wordpiece_tokenizer.tokenize(line)
 
     indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
+    if len(indexed_tokens) > 512:
+      continue
     segment_ids = [1 for x in tokenized_text]
 
     # Convert inputs to PyTorch tensors
