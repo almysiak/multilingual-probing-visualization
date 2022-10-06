@@ -72,11 +72,18 @@ with h5py.File(args.output_path, 'a') as fout:
   for index, line in tqdm(enumerate(open(args.input_path))):
     line = line.strip() # Remove trailing characters
     line = '[CLS] ' + line + ' [SEP]'
-    if args.tokenize_full == 1:
-      # TODO does this even work?
-      tokenized_text = tokenizer.tokenize(line)
-    else:
-      tokenized_text = tokenizer.wordpiece_tokenizer.tokenize(line)
+    # if args.tokenize_full == 1:
+    #   # TODO does this even work?
+    #   tokenized_text = tokenizer.tokenize(line)
+    # else:
+    #   tokenized_text = tokenizer.wordpiece_tokenizer.tokenize(line)
+
+    tokenized_text_test = tokenizer.tokenize(line)
+
+    tokenized_text = tokenizer.wordpiece_tokenizer.tokenize(line)
+
+    assert tokenized_text == tokenized_text_test, f"{tokenized_text} {tokenized_text_test}"
+
 
     indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
     if len(indexed_tokens) > 512:
