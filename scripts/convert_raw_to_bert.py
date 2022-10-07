@@ -78,11 +78,12 @@ with h5py.File(args.output_path, 'a') as fout:
     # else:
     #   tokenized_text = tokenizer.wordpiece_tokenizer.tokenize(line)
 
-    tokenized_text_test = tokenizer.tokenize(line)
+    # tokenized_text_test = tokenizer.tokenize(line)
 
     tokenized_text = tokenizer.wordpiece_tokenizer.tokenize(line)
 
-    assert tokenized_text == tokenized_text_test, f"{tokenized_text} {tokenized_text_test}"
+    # if tokenized_text != tokenized_text_test:
+    #   print(f"{tokenized_text} {tokenized_text_test}")
 
 
     indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
