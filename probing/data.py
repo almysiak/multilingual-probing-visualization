@@ -33,6 +33,26 @@ class SimpleDataset:
     self.vocab = vocab
     lines_to_skip = args['dataset']['corpus']['lines_to_skip'] if 'lines_to_skip' in args['dataset']['corpus'] else []
 
+    try:
+      from pytorch_pretrained_bert import BertTokenizer
+      if 'multilingual' in self.args['model'] and self.args['model']['multilingual'] == True:
+          subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
+          print('Using BERT-base-multilingual tokenizer to align embeddings with PTB tokens')
+      elif self.args['model']['hidden_dim'] == 768:
+        subword_tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+        print('Using BERT-base-cased tokenizer to align embeddings with PTB tokens')
+      elif self.args['model']['hidden_dim'] == 1024:
+        subword_tokenizer = BertTokenizer.from_pretrained('bert-large-cased')
+        print('Using BERT-large-cased tokenizer to align embeddings with PTB tokens')
+      else:
+        print("The heuristic used to choose BERT tokenizers has failed...")
+        exit()
+    except:
+      print('Couldn\'t import pytorch-pretrained-bert. Exiting...')
+      exit()
+
+    self.subword_tokenizer = subword_tokenizer
+
     self.lines_to_skip = [range(x[0], x[1]+1) for x in lines_to_skip]
     self.lines_to_skip = [i for sublist in self.lines_to_skip for i in sublist] # flattens
     self.observation_class = self.get_observation_class(self.args['dataset']['observation_fieldnames'])
@@ -40,6 +60,8 @@ class SimpleDataset:
     self.train_dataset = ObservationIterator(self.train_obs, task)
     self.dev_dataset = ObservationIterator(self.dev_obs, task)
     self.test_dataset = ObservationIterator(self.test_obs, task)
+
+
 
   def read_from_disk(self):
     '''Reads observations from conllx-formatted files
@@ -232,7 +254,22 @@ class SimpleDataset:
       langs = [key for x in range(len(conllx_lines))]
       embeddings = [None for x in range(len(conllx_lines))]
       observation = self.observation_class(*data, langs, embeddings)
-      observations.append(observation)
+      # this whole section below shouldn't be necessary, since we can find out which
+      # sentences are too long beforehand, and store that information somewhere
+      # (or automatically remove them from the conllu files?)
+      
+
+      joiner = ' ' if 'use_no_spaces' in self.args['model'] and self.args['model']['use_no_spaces'] == True else ' '
+
+      
+      if len(self.subword_tokenizer.wordpiece_tokenizer.tokenize('[CLS] ' + joiner.join(observation.sentence) + ' [SEP]')) <= 512: 
+        # if the tokenized thing was not too long, but it might be better to source the indices somewhere
+        # instead of re-tokenizinig here
+        # TODO in the long term
+        observations.append(observation)
+
+      else:
+        print(f"{len(observation.sentence)}: {observation.sentence}")
 
     return observations
 
@@ -480,23 +517,24 @@ class BERTDataset(SubwordDataset):
           exits immediately.
     '''
     if subword_tokenizer == None:
-      try:
-        from pytorch_pretrained_bert import BertTokenizer
-        if 'multilingual' in self.args['model'] and self.args['model']['multilingual'] == True:
-            subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
-            print('Using BERT-base-multilingual tokenizer to align embeddings with PTB tokens')
-        elif self.args['model']['hidden_dim'] == 768:
-          subword_tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
-          print('Using BERT-base-cased tokenizer to align embeddings with PTB tokens')
-        elif self.args['model']['hidden_dim'] == 1024:
-          subword_tokenizer = BertTokenizer.from_pretrained('bert-large-cased')
-          print('Using BERT-large-cased tokenizer to align embeddings with PTB tokens')
-        else:
-          print("The heuristic used to choose BERT tokenizers has failed...")
-          exit()
-      except:
-        print('Couldn\'t import pytorch-pretrained-bert. Exiting...')
-        exit()
+      # try:
+      #   from pytorch_pretrained_bert import BertTokenizer
+      #   if 'multilingual' in self.args['model'] and self.args['model']['multilingual'] == True:
+      #       subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
+      #       print('Using BERT-base-multilingual tokenizer to align embeddings with PTB tokens')
+      #   elif self.args['model']['hidden_dim'] == 768:
+      #     subword_tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+      #     print('Using BERT-base-cased tokenizer to align embeddings with PTB tokens')
+      #   elif self.args['model']['hidden_dim'] == 1024:
+      #     subword_tokenizer = BertTokenizer.from_pretrained('bert-large-cased')
+      #     print('Using BERT-large-cased tokenizer to align embeddings with PTB tokens')
+      #   else:
+      #     print("The heuristic used to choose BERT tokenizers has failed...")
+      #     exit()
+      # except:
+      #   print('Couldn\'t import pytorch-pretrained-bert. Exiting...')
+      #   exit()
+      subword_tokenizer = self.subword_tokenizer
     hf = h5py.File(filepath, 'r')
     indices = list(hf.keys())
     single_layer_features_list = []
@@ -508,12 +546,16 @@ class BERTDataset(SubwordDataset):
     for key in keys:
       key_indices = [index.replace(key + '-', '') for index in indices if index.startswith(key)]
       # print("key_indices are", key_indices)
-      for index in tqdm(sorted([int(x) for x in key_indices]), desc='[aligning {} embeddings]'.format(key)):
+      print(f"SHAPE {len(hf)}, {len(observations)}")
+      for i, index in tqdm(enumerate(sorted([int(x) for x in key_indices])), desc='[aligning {} embeddings]'.format(key)):
         if skip_lines and index in self.obvs_to_skip:
           offset += 1
           continue
         # print(index-offset+running_index)
-        observation = observations[index-offset + running_index]
+        # observation = observations[index-offset + running_index]
+        # idx = key_indices.index(str(index))
+        # print(idx)
+        observation = observations[i]
         hf_key = (key + '-' + str(index)) if key else str(index)
         feature_stack = hf[hf_key]
         single_layer_features = feature_stack[elmo_layer]
@@ -522,7 +564,10 @@ class BERTDataset(SubwordDataset):
         untok_tok_mapping = self.match_tokenized_to_untokenized(tokenized_sent, untokenized_sent)
         # print(single_layer_features.shape[0], len(tokenized_sent))
         # print(observation.sentence, observation.morph)
-        assert single_layer_features.shape[0] == len(tokenized_sent), f"{single_layer_features.shape[0]}, {len(tokenized_sent)}"
+        # coś się wali z kolejnością jak usuwam długie zdania
+        # print( f"{single_layer_features.shape[0]}, {len(tokenized_sent)}")
+        # print(hf_key)
+        assert single_layer_features.shape[0] == len(tokenized_sent), f"{single_layer_features.shape[0]}, {len(tokenized_sent)}, {tokenized_sent}"
         single_layer_features = torch.tensor([np.mean(single_layer_features[untok_tok_mapping[i][0]:untok_tok_mapping[i][-1]+1,:], axis=0) for i in range(len(untokenized_sent))])
         assert single_layer_features.shape[0] == len(observation.sentence)
         single_layer_features_list.append(single_layer_features)
@@ -558,6 +603,13 @@ class ObservationIterator(Dataset):
     """
     self.labels = []
     for observation in tqdm(observations, desc='[computing labels]'):
+      # print(observation)
+      # print(task.labels(observation).shape)
+      # observation is a different length than the labels sometimes -- why?
+      # embeddings are mismatched because of the missing too long sentences
+      # why are the embedding lengths equal to the untokenized sentence lenghts? does that make sense?
+      if observation.embeddings.shape[0] != task.labels(observation).shape[0]:
+        print(observation.embeddings.shape, task.labels(observation).shape, len(observation.sentence))
       self.labels.append(task.labels(observation))
 
   def __len__(self):
