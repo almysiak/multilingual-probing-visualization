@@ -589,7 +589,14 @@ class BERTDataset(SubwordDataset):
         # print(encoded_layers[0].shape) # 1, 34, 768
 
         # dset[:,:,:] = np.vstack([np.array(x.cpu()) for x in encoded_layers])
-        embeddings = encoded_layers[self.args['model']['model_layer']]
+        single_layer_features = encoded_layers[self.args['model']['model_layer']][0]
+        untokenized_sent = data[1]
+        untok_tok_mapping = self.match_tokenized_to_untokenized(tokenized_text, untokenized_sent)
+        print(tokenized_text, untokenized_sent)
+        print(single_layer_features.shape)
+        print(untok_tok_mapping)
+        single_layer_features = torch.tensor([np.mean(single_layer_features[untok_tok_mapping[i][0]:untok_tok_mapping[i][-1]+1,:], axis=0) for i in range(len(untokenized_sent))])
+        embeddings = single_layer_features
 
       else:
         print(f"{len(sentence)}: {sentence}")
@@ -731,6 +738,8 @@ class ObservationIterator(Dataset):
       # why are the embedding lengths equal to the untokenized sentence lenghts? does that make sense?
       if observation.embeddings.shape[0] != task.labels(observation).shape[0]:
         print(observation.embeddings.shape, task.labels(observation).shape, len(observation.sentence))
+        # mine: torch.Size([26, 768]) torch.Size([16, 16]) 16
+        # correct: torch.Size([34, 768]) torch.Size([34, 34]) 34
         # this prints out a ton, why?
       self.labels.append(task.labels(observation))
 
