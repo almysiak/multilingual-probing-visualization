@@ -94,9 +94,13 @@ class SimpleDataset:
     dev_path = self.args['dataset']['corpus']['dev_path']
     test_path = self.args['dataset']['corpus']['test_path']
 
+    if 'limit' in self.args['dataset']:
+      limit = self.args['dataset']['limit']
+    else:
+      limit = None
 
     # train_observations = self.load_keyed_conll_dataset(root_path, train_path, skip_lines=True, keys=train_keys) if self.args['train_probe'] else []
-    train_observations = self.load_keyed_conll_dataset_with_embeddings(root_path, train_path, skip_lines=True, keys=train_keys) if self.args['train_probe'] else []
+    train_observations = self.load_keyed_conll_dataset_with_embeddings(root_path, train_path, skip_lines=True, keys=train_keys, limit=limit) if self.args['train_probe'] else []
     dev_observations = self.load_keyed_conll_dataset(root_path, dev_path, skip_lines=False, keys=dev_keys)
     test_observations = [] # self.load_keyed_conll_dataset(root_path, test_path, skip_lines=False, keys=test_keys)
 
@@ -494,19 +498,19 @@ class BERTDataset(SubwordDataset):
     args: the global yaml-derived experiment config dictionary
   """
 
-  def load_keyed_conll_dataset_with_embeddings(self, root_path, split_path, skip_lines=False, keys=None):
+  def load_keyed_conll_dataset_with_embeddings(self, root_path, split_path, skip_lines=False, keys=None, limit=None):
     if keys == None:
       print("No keys found...")
-      return self.load_conll_dataset_with_embeddings(os.path.join(root_path, split_path), skip_lines)
+      return self.load_conll_dataset_with_embeddings(os.path.join(root_path, split_path), skip_lines, limit)
     else:
       output = []
       for key in keys:
         print("Loading", key, split_path)
-        output += self.load_conll_dataset_with_embeddings(os.path.join(root_path, key, split_path), skip_lines, key)
+        output += self.load_conll_dataset_with_embeddings(os.path.join(root_path, key, split_path), skip_lines, key, limit)
       # print("output:", len(output))
       return output
 
-  def load_conll_dataset_with_embeddings(self, filepath, skip_lines=False, key=""):
+  def load_conll_dataset_with_embeddings(self, filepath, skip_lines=False, key="",  limit=None):
     '''Reads in a conllx file; generates Observation objects
 
     For each sentence in a conllx file, generates a single Observation
@@ -589,12 +593,9 @@ class BERTDataset(SubwordDataset):
         # print(encoded_layers[0].shape) # 1, 34, 768
 
         # dset[:,:,:] = np.vstack([np.array(x.cpu()) for x in encoded_layers])
-        single_layer_features = encoded_layers[self.args['model']['model_layer']][0]
+        single_layer_features = encoded_layers[self.args['model']['model_layer']][0].cpu().numpy()
         untokenized_sent = data[1]
         untok_tok_mapping = self.match_tokenized_to_untokenized(tokenized_text, untokenized_sent)
-        print(tokenized_text, untokenized_sent)
-        print(single_layer_features.shape)
-        print(untok_tok_mapping)
         single_layer_features = torch.tensor([np.mean(single_layer_features[untok_tok_mapping[i][0]:untok_tok_mapping[i][-1]+1,:], axis=0) for i in range(len(untokenized_sent))])
         embeddings = single_layer_features
 
@@ -606,8 +607,8 @@ class BERTDataset(SubwordDataset):
       observation = self.observation_class(*data, langs, embeddings)
       observations.append(observation)
 
-      # if len(observations) > LIMIT: # TODO where do I put the limit
-      #   return observations
+      if limit is not None and len(observations) > limit: # TODO where do I put the limit
+        return observations
  
     return observations
 
