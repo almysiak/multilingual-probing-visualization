@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 RANDOM_PATH = "" #TODO
 
+
 argp = ArgumentParser()
 argp.add_argument('input_path')
 argp.add_argument('output_path')
