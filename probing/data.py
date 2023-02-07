@@ -600,6 +600,9 @@ class BERTDataset(SubwordDataset):
         # print(tokenized_text, untokenized_sent)
         # print(single_layer_features.shape)
         # print(untok_tok_mapping)
+        # TODO optimize the line below
+        # UserWarning: Creating a tensor from a list of numpy.ndarrays is extremely slow. 
+        # Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor.
         single_layer_features = torch.tensor([np.mean(single_layer_features[untok_tok_mapping[i][0]:untok_tok_mapping[i][-1]+1,:], axis=0) for i in range(len(untokenized_sent))])
         embeddings = single_layer_features
 

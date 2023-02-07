@@ -260,4 +260,5 @@ if __name__ == '__main__':
   yaml_args['device'] = device
   yaml_args['train_probe'] = cli_args.train_probe
   yaml_args['did_train'] = (os.path.exists(os.path.join(yaml_args['reporting']['root'], yaml_args['probe']['params_path'])))
+  yaml_args['seed'] = cli_args["seed"]
   execute_experiment(yaml_args, train_probe=cli_args.train_probe > 0, report_results=cli_args.report_results > 0)

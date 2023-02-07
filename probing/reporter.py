@@ -12,6 +12,7 @@ import json
 import sklearn.metrics
 import torch
 import h5py
+import pandas as pd
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -46,6 +47,7 @@ class Reporter:
       dataloader: A DataLoader for a data split
       split_name the string naming the data split: {train,dev,test}
     """
+    results = self.config_values.copy() # TODO values from config, add to self in init?
     self.probe = probe
     self.model = model
     for method in self.reporting_methods:
@@ -55,10 +57,18 @@ class Reporter:
               "methods (reporter.py); skipping".format(method))
           continue
         tqdm.write("Reporting {} on split {}".format(method, split_name))
-        self.reporting_method_dict[method](prediction_batches
+        res = self.reporting_method_dict[method](prediction_batches
             , dataloader, split_name)
+        if res is not None:
+          results.append(res)
       else:
         tqdm.write('[WARNING] Reporting method not known: {}; skipping'.format(method))
+
+    # TODO here: write to a CSV file?
+    df = pd.DataFrame(data=results, columns=self.csv_columns)
+    fname = self.csv_file
+    df.to_csv(fname, index=False, header=os.path.isfile(fname))
+      
 
 
   def write_data(self, prediction_batches, dataset, split_name, save=True):
@@ -354,6 +364,9 @@ class WordPairReporter(Reporter):
         'pca': self.write_pca,
         'unproj_tsne': self.write_unprojected_tsne,
     }
+    self.csv_columns = ["train", "test", "model", "layer", "rank"] + ["dspear", "uuas"]
+    self.config_values = [args["dataset"]["keys"]["train"], args["dataset"]["keys"]["dev"], "mBERT", args["model"]["model_layer"], args["probe"]["maximum_rank"]]
+    self.csv_file = args['reporting']['root'] + "all_results.csv"
     self.reporting_root = args['reporting']['root']
     self.test_reporting_constraint = {'spearmanr', 'uuas', 'root_acc'}
 
@@ -407,6 +420,8 @@ class WordPairReporter(Reporter):
     with open(os.path.join(self.reporting_root, split_name + '.spearmanr-5_50-mean' + ('_linear' if use_linear else '')), 'w') as fout:
       mean = np.mean([mean_spearman_for_each_length[x] for x in range(5,51) if x in mean_spearman_for_each_length])
       fout.write(str(mean) + '\n')
+
+    return mean
 
   def report_image_examples(self, prediction_batches, dataset, split_name):
     """Writes predicted and gold distance matrices to disk for the first 20
@@ -501,6 +516,8 @@ class WordPairReporter(Reporter):
     uuas = uspan_correct / float(uspan_total)
     with open(os.path.join(self.reporting_root, split_name + '.uuas'), 'w') as fout:
       fout.write(str(uuas) + '\n')
+
+    return uuas
 
 
 
@@ -716,6 +733,9 @@ class WordReporter(Reporter):
         }
     self.reporting_root = args['reporting']['root']
     self.test_reporting_constraint = {'spearmanr', 'uuas', 'root_acc'}
+    self.csv_columns = ["train", "test", "model", "layer", "rank", "limit", "seed"] + ["spearmanr"]
+    self.config_values = [args["keys"]["train"], args["keys"]["dev"], "mBERT", args["model"]["model_layer"], args["probe"]["maximum_rank"], 0, args['seed']] # TODO add limit and seed
+    self.csv_file = args['reporting']['root'] + "single_all_results.csv"
 
   def report_spearmanr(self, prediction_batches, dataset, split_name):
     """Writes the Spearman correlations between predicted and true depths.
@@ -755,6 +775,8 @@ class WordReporter(Reporter):
     with open(os.path.join(self.reporting_root, split_name + '.spearmanr-5_50-mean'), 'w') as fout:
       mean = np.mean([mean_spearman_for_each_length[x] for x in range(5,51) if x in mean_spearman_for_each_length])
       fout.write(str(mean) + '\n')
+
+    return mean
 
   def report_root_acc(self, prediction_batches, dataset, split_name):
     """Computes the root prediction accuracy and writes to disk.
