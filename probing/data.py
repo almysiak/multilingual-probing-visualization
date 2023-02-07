@@ -594,8 +594,12 @@ class BERTDataset(SubwordDataset):
 
         # dset[:,:,:] = np.vstack([np.array(x.cpu()) for x in encoded_layers])
         single_layer_features = encoded_layers[self.args['model']['model_layer']][0].cpu().numpy()
+        single_layer_features = encoded_layers[self.args['model']['model_layer']][0].cpu().numpy()
         untokenized_sent = data[1]
         untok_tok_mapping = self.match_tokenized_to_untokenized(tokenized_text, untokenized_sent)
+        # print(tokenized_text, untokenized_sent)
+        # print(single_layer_features.shape)
+        # print(untok_tok_mapping)
         single_layer_features = torch.tensor([np.mean(single_layer_features[untok_tok_mapping[i][0]:untok_tok_mapping[i][-1]+1,:], axis=0) for i in range(len(untokenized_sent))])
         embeddings = single_layer_features
 
