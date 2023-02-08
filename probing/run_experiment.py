@@ -258,7 +258,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = False
     # TODO current seeding is not enough, results differ a bit
 
-  yaml_args = yaml.load(open(cli_args.experiment_config))
+  yaml_args = yaml.unsafe_load(open(cli_args.experiment_config))
   setup_new_experiment_dir(cli_args, yaml_args, cli_args.results_dir)
   if 'limit' not in yaml_args['dataset']:
     yaml_args["dataset"]["limit"] = None
