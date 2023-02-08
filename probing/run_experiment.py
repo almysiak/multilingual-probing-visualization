@@ -212,9 +212,6 @@ def setup_new_experiment_dir(args, yaml_args, reuse_results_path):
     yaml_args: the global config dictionary loaded from yaml
     reuse_results_path: the (optional) path to reuse from a previous run.
   """
-  now = datetime.now()
-  date_suffix = '-'.join((str(x) for x in [now.year, now.month, now.day, now.hour, now.minute, now.second, now.microsecond]))
-  model_suffix = '-'.join((yaml_args['model']['model_type'], yaml_args['probe']['task_name']))
   if reuse_results_path:
     new_root = reuse_results_path
     tqdm.write('Reusing old results directory at {}'.format(new_root))
@@ -223,10 +220,16 @@ def setup_new_experiment_dir(args, yaml_args, reuse_results_path):
       tqdm.write('Setting train_probe to 0 to avoid squashing old params; '
           'explicitly set to 1 to override.')
   else:
-    new_root = os.path.join(yaml_args['reporting']['root'], model_suffix + '-' + date_suffix +'/' )
+    dirname = os.path.join(f"{yaml_args['model']['model_type']}_{yaml_args['probe']['maximum_rank']}", f"{yaml_args['dataset']['keys']['dev']}",
+             f"{yaml_args['dataset']['limit']}", f"{yaml_args['dataset']['keys']['train']}" , f"{args.seed}")
+    new_root = os.path.join(yaml_args['reporting']['root'],  dirname)
     tqdm.write('Constructing new results directory at {}'.format(new_root))
+    assert not os.path.exists(new_root), "Results directory already exists, exiting"
+
+  yaml_args['reporting']['csv'] = yaml_args['reporting']['root']
   yaml_args['reporting']['root'] = new_root
   os.makedirs(new_root, exist_ok=True)
+
   try:
     shutil.copyfile(args.experiment_config, os.path.join(yaml_args['reporting']['root'],
       os.path.basename(args.experiment_config)))
@@ -253,12 +256,16 @@ if __name__ == '__main__':
     torch.manual_seed(cli_args.seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+    # TODO current seeding is not enough, results differ a bit
 
   yaml_args = yaml.load(open(cli_args.experiment_config))
   setup_new_experiment_dir(cli_args, yaml_args, cli_args.results_dir)
+  if 'limit' not in yaml_args['dataset']:
+    yaml_args["dataset"]["limit"] = None
+
   device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   yaml_args['device'] = device
   yaml_args['train_probe'] = cli_args.train_probe
   yaml_args['did_train'] = (os.path.exists(os.path.join(yaml_args['reporting']['root'], yaml_args['probe']['params_path'])))
-  yaml_args['seed'] = cli_args["seed"]
+  yaml_args['seed'] = cli_args.seed
   execute_experiment(yaml_args, train_probe=cli_args.train_probe > 0, report_results=cli_args.report_results > 0)

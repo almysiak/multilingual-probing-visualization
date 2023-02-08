@@ -65,9 +65,10 @@ class Reporter:
         tqdm.write('[WARNING] Reporting method not known: {}; skipping'.format(method))
 
     # TODO here: write to a CSV file?
-    df = pd.DataFrame(data=results, columns=self.csv_columns)
+    df_data = {x: [y] for x, y in zip(self.csv_columns, results)}
+    df = pd.DataFrame(data=df_data)
     fname = self.csv_file
-    df.to_csv(fname, index=False, header=os.path.isfile(fname))
+    df.to_csv(fname, index=False, header=not os.path.isfile(fname), mode="a")
       
 
 
@@ -364,9 +365,9 @@ class WordPairReporter(Reporter):
         'pca': self.write_pca,
         'unproj_tsne': self.write_unprojected_tsne,
     }
-    self.csv_columns = ["train", "test", "model", "layer", "rank"] + ["dspear", "uuas"]
-    self.config_values = [args["dataset"]["keys"]["train"], args["dataset"]["keys"]["dev"], "mBERT", args["model"]["model_layer"], args["probe"]["maximum_rank"]]
-    self.csv_file = args['reporting']['root'] + "all_results.csv"
+    self.csv_columns = ["train", "test", "model", "layer", "rank", "limit", "seed", "directory"] + ["dspear", "uuas"]
+    self.config_values = [args["dataset"]["keys"]["train"], args["dataset"]["keys"]["dev"], "mBERT", args["model"]["model_layer"], args["probe"]["maximum_rank"], args['dataset']['limit'], args['seed'], args['reporting']['root']]
+    self.csv_file = os.path.join(args['reporting']['csv'], "all_results.csv")
     self.reporting_root = args['reporting']['root']
     self.test_reporting_constraint = {'spearmanr', 'uuas', 'root_acc'}
 
@@ -733,9 +734,9 @@ class WordReporter(Reporter):
         }
     self.reporting_root = args['reporting']['root']
     self.test_reporting_constraint = {'spearmanr', 'uuas', 'root_acc'}
-    self.csv_columns = ["train", "test", "model", "layer", "rank", "limit", "seed"] + ["spearmanr"]
-    self.config_values = [args["keys"]["train"], args["keys"]["dev"], "mBERT", args["model"]["model_layer"], args["probe"]["maximum_rank"], 0, args['seed']] # TODO add limit and seed
-    self.csv_file = args['reporting']['root'] + "single_all_results.csv"
+    self.csv_columns = ["train", "test", "model", "layer", "rank", "limit", "seed", "directory"] + ["spearmanr"]
+    self.config_values = [args["keys"]["train"], args["keys"]["dev"], "mBERT", args["model"]["model_layer"], args["probe"]["maximum_rank"], args['dataset']['limit'], args['seed'], args['reporting']['root']] # TODO add limit and seed
+    self.csv_file = os.path.join(args['reporting']['csv'], "single_all_results.csv")
 
   def report_spearmanr(self, prediction_batches, dataset, split_name):
     """Writes the Spearman correlations between predicted and true depths.
