@@ -101,7 +101,7 @@ class SimpleDataset:
 
     # train_observations = self.load_keyed_conll_dataset(root_path, train_path, skip_lines=True, keys=train_keys) if self.args['train_probe'] else []
     train_observations = self.load_keyed_conll_dataset_with_embeddings(root_path, train_path, skip_lines=True, keys=train_keys, limit=limit) if self.args['train_probe'] else []
-    dev_observations = self.load_keyed_conll_dataset(root_path, dev_path, skip_lines=False, keys=dev_keys)
+    dev_observations = self.load_keyed_conll_dataset_with_embeddings(root_path, dev_path, skip_lines=False, keys=dev_keys, limit=None)
     test_observations = [] # self.load_keyed_conll_dataset(root_path, test_path, skip_lines=False, keys=test_keys)
 
     # TODO a more permanent fix that allows the keys to be None
@@ -112,7 +112,7 @@ class SimpleDataset:
     test_embeddings_path = os.path.join(self.args['dataset']['embeddings']['root'], test_keys[0],
         self.args['dataset']['embeddings']['test_path'])
     # train_observations = self.optionally_add_embeddings(train_observations, train_embeddings_path, skip_lines=True, keys=train_keys) if self.args['train_probe'] else []
-    dev_observations = self.optionally_add_embeddings(dev_observations, dev_embeddings_path, keys=dev_keys)
+    # dev_observations = self.optionally_add_embeddings(dev_observations, dev_embeddings_path, keys=dev_keys)
     # test_observations = self.optionally_add_embeddings(test_observations, test_embeddings_path, keys=test_keys)
     return train_observations, dev_observations, test_observations
 
@@ -522,8 +522,6 @@ class BERTDataset(SubwordDataset):
     Returns:
       A list of Observations
     '''
-    # TODO use this method in generating train observations
-    # add limit somehow
     # TODO load model for embeddings, add as argument
     observations = []
     lines = (x for x in open(filepath))
