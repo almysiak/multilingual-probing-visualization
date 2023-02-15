@@ -38,7 +38,7 @@ class SimpleDataset:
     try:
       from pytorch_pretrained_bert import BertTokenizer, BertModel
       if 'multilingual' in self.args['model'] and self.args['model']['multilingual'] == True:
-          subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
+          subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False)
           model = BertModel.from_pretrained('bert-base-multilingual-cased')
           print('Using BERT-base-multilingual tokenizer to align embeddings with PTB tokens')
       elif self.args['model']['hidden_dim'] == 768:
@@ -612,7 +612,7 @@ class BERTDataset(SubwordDataset):
       observation = self.observation_class(*data, langs, embeddings)
       observations.append(observation)
 
-      if limit is not None and len(observations) > limit: # TODO where do I put the limit
+      if limit is not None and len(observations) > limit:
         return observations
  
     return observations
