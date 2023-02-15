@@ -220,7 +220,7 @@ def setup_new_experiment_dir(args, yaml_args, reuse_results_path):
       tqdm.write('Setting train_probe to 0 to avoid squashing old params; '
           'explicitly set to 1 to override.')
   else:
-    dirname = os.path.join(f"{yaml_args['model']['model_type']}_{yaml_args['probe']['maximum_rank']}", f"{yaml_args['dataset']['keys']['dev']}",
+    dirname = os.path.join(f"{yaml_args['model']['model_type']}{'-rand' if args.randomize > 0 else ''}_{yaml_args['probe']['maximum_rank']}", f"{yaml_args['dataset']['keys']['dev']}",
              f"{yaml_args['dataset']['limit']}", f"{yaml_args['dataset']['keys']['train']}" , f"{args.seed}")
     new_root = os.path.join(yaml_args['reporting']['root'],  dirname)
     tqdm.write('Constructing new results directory at {}'.format(new_root))
@@ -250,6 +250,8 @@ if __name__ == '__main__':
       '(optionally after training a new probe)')
   argp.add_argument('--seed', default=0, type=int,
       help='sets all random seeds for (within-machine) reproducibility')
+  argp.add_argument('--randomize', default=-1, type=int,
+      help='Set to use a randomized mBERT baseline')
   cli_args = argp.parse_args()
   if cli_args.seed:
     np.random.seed(cli_args.seed)
@@ -262,6 +264,8 @@ if __name__ == '__main__':
   setup_new_experiment_dir(cli_args, yaml_args, cli_args.results_dir)
   if 'limit' not in yaml_args['dataset']:
     yaml_args["dataset"]["limit"] = None
+
+  yaml_args["randomize"] = cli_args.randomize > 0
 
   device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   yaml_args['device'] = device

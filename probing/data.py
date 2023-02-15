@@ -37,10 +37,15 @@ class SimpleDataset:
 
     try:
       from pytorch_pretrained_bert import BertTokenizer, BertModel
-      if 'multilingual' in self.args['model'] and self.args['model']['multilingual'] == True:
-          subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False)
-          model = BertModel.from_pretrained('bert-base-multilingual-cased')
-          print('Using BERT-base-multilingual tokenizer to align embeddings with PTB tokens')
+      if self.args['randomize'] == True:
+        RANDOM_PATH = "data/models/mBERTRand.tar.gz"
+        subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False)
+        model = BertModel.from_pretrained(RANDOM_PATH)
+        print('Using randomized BERT-base-multilingual tokenizer to align embeddings with PTB tokens')
+      elif 'multilingual' in self.args['model'] and self.args['model']['multilingual'] == True:
+        subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False)
+        model = BertModel.from_pretrained('bert-base-multilingual-cased')
+        print('Using BERT-base-multilingual tokenizer to align embeddings with PTB tokens')
       elif self.args['model']['hidden_dim'] == 768:
         subword_tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
         model = BertModel.from_pretrained('bert-base-cased')

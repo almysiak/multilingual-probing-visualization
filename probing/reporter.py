@@ -366,7 +366,8 @@ class WordPairReporter(Reporter):
         'unproj_tsne': self.write_unprojected_tsne,
     }
     self.csv_columns = ["train", "test", "model", "layer", "rank", "limit", "seed", "directory"] + ["dspear", "uuas"]
-    self.config_values = [args["dataset"]["keys"]["train"], args["dataset"]["keys"]["dev"], "mBERT", args["model"]["model_layer"], args["probe"]["maximum_rank"], args['dataset']['limit'], args['seed'], args['reporting']['root']]
+    model_str = "mBERTRand" if args["randomize"] else "mBERT" 
+    self.config_values = [args["dataset"]["keys"]["train"], args["dataset"]["keys"]["dev"], model_str, args["model"]["model_layer"], args["probe"]["maximum_rank"], args['dataset']['limit'], args['seed'], args['reporting']['root']]
     self.csv_file = os.path.join(args['reporting']['csv'], "all_results.csv")
     self.reporting_root = args['reporting']['root']
     self.test_reporting_constraint = {'spearmanr', 'uuas', 'root_acc'}
@@ -735,7 +736,8 @@ class WordReporter(Reporter):
     self.reporting_root = args['reporting']['root']
     self.test_reporting_constraint = {'spearmanr', 'uuas', 'root_acc'}
     self.csv_columns = ["train", "test", "model", "layer", "rank", "limit", "seed", "directory"] + ["spearmanr"]
-    self.config_values = [args["keys"]["train"], args["keys"]["dev"], "mBERT", args["model"]["model_layer"], args["probe"]["maximum_rank"], args['dataset']['limit'], args['seed'], args['reporting']['root']] # TODO add limit and seed
+    model_str = "mBERTRand" if args["randomize"] else "mBERT" 
+    self.config_values = [args["keys"]["train"], args["keys"]["dev"], model_str, args["model"]["model_layer"], args["probe"]["maximum_rank"], args['dataset']['limit'], args['seed'], args['reporting']['root']] # TODO add limit and seed
     self.csv_file = os.path.join(args['reporting']['csv'], "single_all_results.csv")
 
   def report_spearmanr(self, prediction_batches, dataset, split_name):
