@@ -147,7 +147,8 @@ def run_report_results(args, probe, dataset, model, loss, reporter, regimen):
   By default, does so only for dev set.
   Requires a simple code change to run on the test set.
   """
-  probe_params_path = os.path.join(args['reporting']['root'], args['probe']['params_path'])
+  # TODO change where probe is loaded from here, based on just train params, not test
+  probe_params_path = args['probe_path']
   print("PATH", probe_params_path)
 
   dev_dataloader = dataset.get_dev_dataloader()
@@ -192,10 +193,16 @@ def execute_experiment(args, train_probe, report_results):
   expt_model = model_class(args)
   expt_regimen = regimen_class(args)
   expt_loss = loss_class(args)
+  # TODO set here, check if probe exists
+  # args['probe_path'] = os.path.join(args['reporting']['root'], args['probe']['params_path'])
 
   if train_probe:
-    print('Training probe...')
-    run_train_probe(args, expt_probe, expt_dataset, expt_model, expt_loss, expt_reporter, expt_regimen)
+    if not os.path.exists(args['probe_path']):
+      print(f'Training probe for {args["probe_path"]}')
+      run_train_probe(args, expt_probe, expt_dataset, expt_model, expt_loss, expt_reporter, expt_regimen)
+    else:
+      print(f"Probe found: {args['probe_path']}")
+    assert False
   if report_results:
     print('Reporting results of trained probe...')
     run_report_results(args, expt_probe, expt_dataset, expt_model, expt_loss, expt_reporter, expt_regimen)
@@ -220,7 +227,8 @@ def setup_new_experiment_dir(args, yaml_args, reuse_results_path):
       tqdm.write('Setting train_probe to 0 to avoid squashing old params; '
           'explicitly set to 1 to override.')
   else:
-    dirname = os.path.join(f"{yaml_args['model']['model_type']}{'-rand' if args.randomize > 0 else ''}_{yaml_args['probe']['maximum_rank']}", f"{yaml_args['dataset']['keys']['dev']}",
+    # here is where I set the directory
+    dirname = os.path.join(f"{yaml_args['model']['model_type']}{'-rand' if args.randomize > 0 else ''}_{yaml_args['probe']['maximum_rank']}",
              f"{yaml_args['dataset']['limit']}", f"{yaml_args['dataset']['keys']['train']}" , f"{args.seed}")
     new_root = os.path.join(yaml_args['reporting']['root'],  dirname)
     tqdm.write('Constructing new results directory at {}'.format(new_root))
@@ -228,13 +236,14 @@ def setup_new_experiment_dir(args, yaml_args, reuse_results_path):
 
   yaml_args['reporting']['csv'] = yaml_args['reporting']['root']
   yaml_args['reporting']['root'] = new_root
+  yaml_args['probe_path'] = os.path.join(yaml_args['reporting']['root'], yaml_args['probe']['params_path'])
   os.makedirs(new_root, exist_ok=True)
 
-  try:
-    shutil.copyfile(args.experiment_config, os.path.join(yaml_args['reporting']['root'],
-      os.path.basename(args.experiment_config)))
-  except shutil.SameFileError:
-    tqdm.write('Note, the config being used is the same as that already present in the results dir')
+  # try:
+  #   shutil.copyfile(args.experiment_config, os.path.join(yaml_args['reporting']['root'],
+  #     os.path.basename(args.experiment_config)))
+  # except shutil.SameFileError:
+  #   tqdm.write('Note, the config being used is the same as that already present in the results dir')
 
 
 if __name__ == '__main__':
@@ -258,7 +267,6 @@ if __name__ == '__main__':
     torch.manual_seed(cli_args.seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    # TODO current seeding is not enough, results differ a bit
 
   yaml_args = yaml.unsafe_load(open(cli_args.experiment_config))
   setup_new_experiment_dir(cli_args, yaml_args, cli_args.results_dir)

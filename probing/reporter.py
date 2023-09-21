@@ -64,7 +64,7 @@ class Reporter:
       else:
         tqdm.write('[WARNING] Reporting method not known: {}; skipping'.format(method))
 
-    # TODO here: write to a CSV file?
+    # append to a CSV file
     df_data = {x: [y] for x, y in zip(self.csv_columns, results)}
     df = pd.DataFrame(data=df_data)
     fname = self.csv_file
@@ -415,13 +415,13 @@ class WordPairReporter(Reporter):
     mean_spearman_for_each_length = {length: np.mean(lengths_to_spearmanrs[length])
         for length in lengths_to_spearmanrs}
 
-    with open(os.path.join(self.reporting_root, split_name + '.spearmanr' + ('_linear' if use_linear else '')), 'w') as fout:
-      for length in sorted(mean_spearman_for_each_length):
-        fout.write(str(length) + '\t' + str(mean_spearman_for_each_length[length]) + '\n')
+    # with open(os.path.join(self.reporting_root, split_name + '.spearmanr' + ('_linear' if use_linear else '')), 'w') as fout:
+    #   for length in sorted(mean_spearman_for_each_length):
+    #     fout.write(str(length) + '\t' + str(mean_spearman_for_each_length[length]) + '\n')
 
     with open(os.path.join(self.reporting_root, split_name + '.spearmanr-5_50-mean' + ('_linear' if use_linear else '')), 'w') as fout:
       mean = np.mean([mean_spearman_for_each_length[x] for x in range(5,51) if x in mean_spearman_for_each_length])
-      fout.write(str(mean) + '\n')
+      # fout.write(str(mean) + '\n')
 
     return mean
 
@@ -516,8 +516,8 @@ class WordPairReporter(Reporter):
         uspan_total += len(gold_edges)
         total_sents += 1
     uuas = uspan_correct / float(uspan_total)
-    with open(os.path.join(self.reporting_root, split_name + '.uuas'), 'w') as fout:
-      fout.write(str(uuas) + '\n')
+    # with open(os.path.join(self.reporting_root, split_name + '.uuas'), 'w') as fout:
+    #   fout.write(str(uuas) + '\n')
 
     return uuas
 
@@ -607,15 +607,15 @@ class WordPairReporter(Reporter):
     correct_deps = correct_proj_deps + correct_nonproj_deps
     total_deps = total_proj_deps + total_nonproj_deps
 
-    with open(os.path.join(self.reporting_root, split_name+'-nonproj.info'), 'w') as fout:
-        fout.write(f"Proj: {correct_proj_deps}\n{total_proj_deps}\n{correct_proj_deps/total_proj_deps}\n")
-        if total_nonproj_deps != 0:
-            fout.write(f"Nonproj: {correct_nonproj_deps}\n{total_nonproj_deps}\n{correct_nonproj_deps/total_nonproj_deps}\n")
-        fout.write(f"Total: {correct_deps}\n{total_deps}\n{correct_deps/total_deps}\n")
+    # with open(os.path.join(self.reporting_root, split_name+'-nonproj.info'), 'w') as fout:
+    #     fout.write(f"Proj: {correct_proj_deps}\n{total_proj_deps}\n{correct_proj_deps/total_proj_deps}\n")
+    #     if total_nonproj_deps != 0:
+    #         fout.write(f"Nonproj: {correct_nonproj_deps}\n{total_nonproj_deps}\n{correct_nonproj_deps/total_nonproj_deps}\n")
+    #     fout.write(f"Total: {correct_deps}\n{total_deps}\n{correct_deps/total_deps}\n")
 
-    with open(os.path.join(self.reporting_root, split_name+'-nonproj.acc'), 'w') as fout:
-        if total_nonproj_deps != 0:
-            fout.write(f"{correct_nonproj_deps}\n{total_nonproj_deps}\n{correct_nonproj_deps/total_nonproj_deps}")
+    # with open(os.path.join(self.reporting_root, split_name+'-nonproj.acc'), 'w') as fout:
+    #     if total_nonproj_deps != 0:
+    #         fout.write(f"{correct_nonproj_deps}\n{total_nonproj_deps}\n{correct_nonproj_deps/total_nonproj_deps}")
 
   def print_tikz(self, prediction_edges, gold_edges, words, split_name):
     ''' Turns edge sets on word (nodes) into tikz dependency LaTeX. '''
@@ -695,11 +695,11 @@ class WordPairReporter(Reporter):
                     total_post_adj += 1
                     correct_post_adj += (tuple(sorted([idx, head_idx])) in pred_edges)
 
-    with open(os.path.join(self.reporting_root, split_name+'-adj.info'), 'w') as fout:
-        if total_pre_adj:
-          fout.write(f"Pre: ({correct_pre_adj}/{total_pre_adj})\t{correct_pre_adj/total_pre_adj}\n")
-        if total_post_adj:
-          fout.write(f"Post: ({correct_post_adj}/{total_post_adj})\t{correct_post_adj/total_post_adj}\n")
+    # with open(os.path.join(self.reporting_root, split_name+'-adj.info'), 'w') as fout:
+    #     if total_pre_adj:
+    #       fout.write(f"Pre: ({correct_pre_adj}/{total_pre_adj})\t{correct_pre_adj/total_pre_adj}\n")
+    #     if total_post_adj:
+    #       fout.write(f"Post: ({correct_post_adj}/{total_post_adj})\t{correct_post_adj/total_post_adj}\n")
 
   def print_tikz(self, prediction_edges, gold_edges, words, split_name):
     ''' Turns edge sets on word (nodes) into tikz dependency LaTeX. '''

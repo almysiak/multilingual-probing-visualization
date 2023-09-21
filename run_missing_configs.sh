@@ -1,4 +1,4 @@
-for SEED in 0 1 2
+for SEED in 1
 do
     for file in configs/missing_slavic/*.yaml
     do

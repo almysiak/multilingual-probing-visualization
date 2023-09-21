@@ -20,6 +20,7 @@ class ProbeRegimen:
   def __init__(self, args):
     self.args = args
     self.max_epochs = args['probe_training']['epochs']
+    # TODO change this? where do I get my dir structure??
     self.params_path = os.path.join(args['reporting']['root'], args['probe']['params_path'])
 
   def set_optimizer(self, probe):
