@@ -187,7 +187,7 @@ def execute_experiment(args, train_probe, report_results):
   regimen_class = regimen.ProbeRegimen
 
   task = task_class()
-  expt_dataset = dataset_class(args, task)
+  # expt_dataset = dataset_class(args, task)
   expt_reporter = reporter_class(args)
   expt_probe = probe_class(args)
   expt_model = model_class(args)
@@ -231,8 +231,9 @@ def setup_new_experiment_dir(args, yaml_args, reuse_results_path):
     dirname = os.path.join(f"{yaml_args['model']['model_type']}{'-rand' if args.randomize > 0 else ''}_{yaml_args['probe']['maximum_rank']}",
              f"{yaml_args['dataset']['limit']}", f"{yaml_args['dataset']['keys']['train']}" , f"{args.seed}")
     new_root = os.path.join(yaml_args['reporting']['root'],  dirname)
-    tqdm.write('Constructing new results directory at {}'.format(new_root))
-    assert not os.path.exists(new_root), "Results directory already exists, exiting"
+    if not os.path.exists(new_root):
+      tqdm.write('Constructing new results directory at {}'.format(new_root))
+    # assert not os.path.exists(new_root), f"Results directory already exists at {new_root}, exiting"
 
   yaml_args['reporting']['csv'] = yaml_args['reporting']['root']
   yaml_args['reporting']['root'] = new_root
