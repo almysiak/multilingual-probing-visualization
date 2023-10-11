@@ -187,14 +187,12 @@ def execute_experiment(args, train_probe, report_results):
   regimen_class = regimen.ProbeRegimen
 
   task = task_class()
-  # expt_dataset = dataset_class(args, task)
+  expt_dataset = dataset_class(args, task)
   expt_reporter = reporter_class(args)
   expt_probe = probe_class(args)
   expt_model = model_class(args)
   expt_regimen = regimen_class(args)
   expt_loss = loss_class(args)
-  # TODO set here, check if probe exists
-  # args['probe_path'] = os.path.join(args['reporting']['root'], args['probe']['params_path'])
 
   if train_probe:
     if not os.path.exists(args['probe_path']):
@@ -202,7 +200,6 @@ def execute_experiment(args, train_probe, report_results):
       run_train_probe(args, expt_probe, expt_dataset, expt_model, expt_loss, expt_reporter, expt_regimen)
     else:
       print(f"Probe found: {args['probe_path']}")
-    assert False
   if report_results:
     print('Reporting results of trained probe...')
     run_report_results(args, expt_probe, expt_dataset, expt_model, expt_loss, expt_reporter, expt_regimen)
