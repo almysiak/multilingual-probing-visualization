@@ -14,6 +14,8 @@ import torch
 import torch.nn as nn
 import h5py
 
+DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+
 
 class SimpleDataset:
   """Reads conllx files to provide PyTorch Dataloaders
@@ -34,15 +36,23 @@ class SimpleDataset:
     lines_to_skip = args['dataset']['corpus']['lines_to_skip'] if 'lines_to_skip' in args['dataset']['corpus'] else []
 
     try:
-      from pytorch_pretrained_bert import BertTokenizer
-      if 'multilingual' in self.args['model'] and self.args['model']['multilingual'] == True:
-          subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
-          print('Using BERT-base-multilingual tokenizer to align embeddings with PTB tokens')
+      from pytorch_pretrained_bert import BertTokenizer, BertModel
+      if self.args['randomize'] == True:
+        RANDOM_PATH = "data/models/mBERTRand.tar.gz"
+        subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False)
+        model = BertModel.from_pretrained(RANDOM_PATH)
+        print('Using randomized BERT-base-multilingual tokenizer to align embeddings with PTB tokens')
+      elif 'multilingual' in self.args['model'] and self.args['model']['multilingual'] == True:
+        subword_tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False)
+        model = BertModel.from_pretrained('bert-base-multilingual-cased')
+        print('Using BERT-base-multilingual tokenizer to align embeddings with PTB tokens')
       elif self.args['model']['hidden_dim'] == 768:
         subword_tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+        model = BertModel.from_pretrained('bert-base-cased')
         print('Using BERT-base-cased tokenizer to align embeddings with PTB tokens')
       elif self.args['model']['hidden_dim'] == 1024:
         subword_tokenizer = BertTokenizer.from_pretrained('bert-large-cased')
+        model = BertModel.from_pretrained('bert-large-cased')
         print('Using BERT-large-cased tokenizer to align embeddings with PTB tokens')
       else:
         print("The heuristic used to choose BERT tokenizers has failed...")
@@ -52,6 +62,9 @@ class SimpleDataset:
       exit()
 
     self.subword_tokenizer = subword_tokenizer
+    model = model.to(DEVICE)
+    model.eval()
+    self.model = model
 
     self.lines_to_skip = [range(x[0], x[1]+1) for x in lines_to_skip]
     self.lines_to_skip = [i for sublist in self.lines_to_skip for i in sublist] # flattens
@@ -86,9 +99,14 @@ class SimpleDataset:
     dev_path = self.args['dataset']['corpus']['dev_path']
     test_path = self.args['dataset']['corpus']['test_path']
 
+    if 'limit' in self.args['dataset']:
+      limit = self.args['dataset']['limit']
+    else:
+      limit = None
 
-    train_observations = self.load_keyed_conll_dataset(root_path, train_path, skip_lines=True, keys=train_keys) if self.args['train_probe'] else []
-    dev_observations = self.load_keyed_conll_dataset(root_path, dev_path, skip_lines=False, keys=dev_keys)
+    # train_observations = self.load_keyed_conll_dataset(root_path, train_path, skip_lines=True, keys=train_keys) if self.args['train_probe'] else []
+    train_observations = self.load_keyed_conll_dataset_with_embeddings(root_path, train_path, skip_lines=True, keys=train_keys, limit=limit) if self.args['train_probe'] else []
+    dev_observations = self.load_keyed_conll_dataset_with_embeddings(root_path, dev_path, skip_lines=False, keys=dev_keys, limit=None)
     test_observations = [] # self.load_keyed_conll_dataset(root_path, test_path, skip_lines=False, keys=test_keys)
 
     # TODO a more permanent fix that allows the keys to be None
@@ -98,8 +116,8 @@ class SimpleDataset:
         self.args['dataset']['embeddings']['dev_path'])
     test_embeddings_path = os.path.join(self.args['dataset']['embeddings']['root'], test_keys[0],
         self.args['dataset']['embeddings']['test_path'])
-    train_observations = self.optionally_add_embeddings(train_observations, train_embeddings_path, skip_lines=True, keys=train_keys) if self.args['train_probe'] else []
-    dev_observations = self.optionally_add_embeddings(dev_observations, dev_embeddings_path, keys=dev_keys)
+    # train_observations = self.optionally_add_embeddings(train_observations, train_embeddings_path, skip_lines=True, keys=train_keys) if self.args['train_probe'] else []
+    # dev_observations = self.optionally_add_embeddings(dev_observations, dev_embeddings_path, keys=dev_keys)
     # test_observations = self.optionally_add_embeddings(test_observations, test_embeddings_path, keys=test_keys)
     return train_observations, dev_observations, test_observations
 
@@ -485,6 +503,124 @@ class BERTDataset(SubwordDataset):
     args: the global yaml-derived experiment config dictionary
   """
 
+  def load_keyed_conll_dataset_with_embeddings(self, root_path, split_path, skip_lines=False, keys=None, limit=None):
+    if keys == None:
+      print("No keys found...")
+      return self.load_conll_dataset_with_embeddings(os.path.join(root_path, split_path), skip_lines, limit)
+    else:
+      output = []
+      for key in keys:
+        print("Loading", key, split_path)
+        output += self.load_conll_dataset_with_embeddings(os.path.join(root_path, key, split_path), skip_lines, key, limit)
+      # print("output:", len(output))
+      return output
+
+  def load_conll_dataset_with_embeddings(self, filepath, skip_lines=False, key="",  limit=None):
+    '''Reads in a conllx file; generates Observation objects
+
+    For each sentence in a conllx file, generates a single Observation
+    object.
+
+    Args:
+      filepath: the filesystem path to the conll dataset
+
+    Returns:
+      A list of Observations
+    '''
+    # TODO load model for embeddings, add as argument
+    observations = []
+    lines = (x for x in open(filepath))
+    head_index = self.args['dataset']['observation_fieldnames'].index('head_indices')
+    for buf in self.generate_lines_for_sent(lines, skip_lines):
+      conllx_lines = []
+      for line in buf:
+        conllx_lines.append(line.strip().split('\t'))
+      conllx_lines = [x for x in conllx_lines if '.' not in x[0]]
+      conllx_lines = self.remove_ranges(conllx_lines, head_index)
+      # print(conllx_lines)
+      # conllx_lines - lista list, jedna lista na słowo
+
+      data = list(zip(*conllx_lines))
+
+      head_indices = list(data[head_index])
+
+      # resolve ambiguities that arise with multiwords
+      for i, indices in enumerate(head_indices, 1):
+        if not isinstance(indices, list): continue # nothing to be resolved
+        indices = list(dict.fromkeys(indices))    # remove duplicates; can't use set because want to preserve order
+        if len(indices) == 0:
+          raise AssertionError
+        if '0' in indices:
+          head_indices[i-1] = '0'
+          continue
+        for idx in indices:
+          if (head_indices[int(idx)-1] == str(i) or
+             (isinstance(head_indices[int(idx)-1], list) and str(i) in head_indices[int(idx)-1])):
+            indices.remove(idx)
+        if len(indices) == 1:
+          head_indices[i-1] = indices[0]
+        elif len(indices) == 0:
+          raise AssertionError
+        else:
+          # print("Remaining ambiguity found", len(indices), conllx_lines[i-1])
+          head_indices[i-1] = indices[-1]
+      data[head_index] = tuple(head_indices)
+      for x in head_indices:
+        assert(isinstance(x, str)), (data, x)
+
+      langs = [key for x in range(len(conllx_lines))]
+
+      joiner = ' ' if 'use_no_spaces' in self.args['model'] and self.args['model']['use_no_spaces'] == True else ' '
+
+      sentence = '[CLS] ' + joiner.join(data[1]) + ' [SEP]' # TODO which thing is the sentence
+
+      tokenized_text = self.subword_tokenizer.wordpiece_tokenizer.tokenize(sentence)
+      indexed_tokens = self.subword_tokenizer.convert_tokens_to_ids(tokenized_text)
+
+      if len(indexed_tokens) <= 512: 
+        # if the tokenized thing was not too long, but it might be better to source the indices somewhere
+        # instead of re-tokenizinig here
+        # TODO in the long term
+        segment_ids = [1 for x in tokenized_text]
+
+        # Convert inputs to PyTorch tensors
+        tokens_tensor = torch.tensor([indexed_tokens]).to(DEVICE)
+        segments_tensors = torch.tensor([segment_ids]).to(DEVICE)
+
+        with torch.no_grad():
+            encoded_layers, _ = self.model(tokens_tensor, segments_tensors)
+
+        # print(sentence)
+        # print(len(encoded_layers)) # 12
+        # print(len(indexed_tokens)) # 34
+        # print(encoded_layers[0].shape) # 1, 34, 768
+
+        # dset[:,:,:] = np.vstack([np.array(x.cpu()) for x in encoded_layers])
+        single_layer_features = encoded_layers[self.args['model']['model_layer']][0].cpu().numpy()
+        untokenized_sent = data[1]
+        untok_tok_mapping = self.match_tokenized_to_untokenized(tokenized_text, untokenized_sent)
+        # print(tokenized_text, untokenized_sent)
+        # print(single_layer_features.shape)
+        # print(untok_tok_mapping)
+        # TODO optimize the line below
+        # UserWarning: Creating a tensor from a list of numpy.ndarrays is extremely slow. 
+        # Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor.
+        single_layer_features = torch.tensor([np.mean(single_layer_features[untok_tok_mapping[i][0]:untok_tok_mapping[i][-1]+1,:], axis=0) for i in range(len(untokenized_sent))])
+        embeddings = single_layer_features
+
+      else:
+        print(f"{len(sentence)}: {sentence}")
+        continue
+
+      # embeddings = [None for x in range(len(conllx_lines))]
+      observation = self.observation_class(*data, langs, embeddings)
+      observations.append(observation)
+
+      if limit is not None and len(observations) > limit:
+        return observations
+ 
+    return observations
+
   def generate_subword_embeddings_from_hdf5(self, observations, filepath, elmo_layer, subword_tokenizer=None, skip_lines=False, keys=None):
     '''Reads pre-computed subword embeddings from hdf5-formatted file.
 
@@ -583,6 +719,8 @@ class BERTDataset(SubwordDataset):
     observations = self.add_embeddings_to_observations(observations, embeddings)
     return observations
 
+  
+
 
 class ObservationIterator(Dataset):
   """ List Container for lists of Observations and labels for them.
@@ -595,7 +733,7 @@ class ObservationIterator(Dataset):
     self.set_labels(observations, task)
 
   def set_labels(self, observations, task):
-    """ Constructs aand stores label for each observation.
+    """ Constructs and stores label for each observation.
 
     Args:
       observations: A list of observations describing a dataset
@@ -610,6 +748,9 @@ class ObservationIterator(Dataset):
       # why are the embedding lengths equal to the untokenized sentence lenghts? does that make sense?
       if observation.embeddings.shape[0] != task.labels(observation).shape[0]:
         print(observation.embeddings.shape, task.labels(observation).shape, len(observation.sentence))
+        # mine: torch.Size([26, 768]) torch.Size([16, 16]) 16
+        # correct: torch.Size([34, 768]) torch.Size([34, 34]) 34
+        # this prints out a ton, why?
       self.labels.append(task.labels(observation))
 
   def __len__(self):

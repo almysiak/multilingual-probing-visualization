@@ -147,7 +147,8 @@ def run_report_results(args, probe, dataset, model, loss, reporter, regimen):
   By default, does so only for dev set.
   Requires a simple code change to run on the test set.
   """
-  probe_params_path = os.path.join(args['reporting']['root'], args['probe']['params_path'])
+  # TODO change where probe is loaded from here, based on just train params, not test
+  probe_params_path = args['probe_path']
   print("PATH", probe_params_path)
 
   dev_dataloader = dataset.get_dev_dataloader()
@@ -194,8 +195,11 @@ def execute_experiment(args, train_probe, report_results):
   expt_loss = loss_class(args)
 
   if train_probe:
-    print('Training probe...')
-    run_train_probe(args, expt_probe, expt_dataset, expt_model, expt_loss, expt_reporter, expt_regimen)
+    if not os.path.exists(args['probe_path']):
+      print(f'Training probe for {args["probe_path"]}')
+      run_train_probe(args, expt_probe, expt_dataset, expt_model, expt_loss, expt_reporter, expt_regimen)
+    else:
+      print(f"Probe found: {args['probe_path']}")
   if report_results:
     print('Reporting results of trained probe...')
     run_report_results(args, expt_probe, expt_dataset, expt_model, expt_loss, expt_reporter, expt_regimen)
@@ -212,9 +216,6 @@ def setup_new_experiment_dir(args, yaml_args, reuse_results_path):
     yaml_args: the global config dictionary loaded from yaml
     reuse_results_path: the (optional) path to reuse from a previous run.
   """
-  now = datetime.now()
-  date_suffix = '-'.join((str(x) for x in [now.year, now.month, now.day, now.hour, now.minute, now.second, now.microsecond]))
-  model_suffix = '-'.join((yaml_args['model']['model_type'], yaml_args['probe']['task_name']))
   if reuse_results_path:
     new_root = reuse_results_path
     tqdm.write('Reusing old results directory at {}'.format(new_root))
@@ -223,15 +224,24 @@ def setup_new_experiment_dir(args, yaml_args, reuse_results_path):
       tqdm.write('Setting train_probe to 0 to avoid squashing old params; '
           'explicitly set to 1 to override.')
   else:
-    new_root = os.path.join(yaml_args['reporting']['root'], model_suffix + '-' + date_suffix +'/' )
-    tqdm.write('Constructing new results directory at {}'.format(new_root))
+    # here is where I set the directory
+    dirname = os.path.join(f"{yaml_args['model']['model_type']}{'-rand' if args.randomize > 0 else ''}_{yaml_args['probe']['maximum_rank']}",
+             f"{yaml_args['dataset']['limit']}", f"{yaml_args['dataset']['keys']['train']}" , f"{args.seed}")
+    new_root = os.path.join(yaml_args['reporting']['root'],  dirname)
+    if not os.path.exists(new_root):
+      tqdm.write('Constructing new results directory at {}'.format(new_root))
+    # assert not os.path.exists(new_root), f"Results directory already exists at {new_root}, exiting"
+
+  yaml_args['reporting']['csv'] = yaml_args['reporting']['root']
   yaml_args['reporting']['root'] = new_root
+  yaml_args['probe_path'] = os.path.join(yaml_args['reporting']['root'], yaml_args['probe']['params_path'])
   os.makedirs(new_root, exist_ok=True)
-  try:
-    shutil.copyfile(args.experiment_config, os.path.join(yaml_args['reporting']['root'],
-      os.path.basename(args.experiment_config)))
-  except shutil.SameFileError:
-    tqdm.write('Note, the config being used is the same as that already present in the results dir')
+
+  # try:
+  #   shutil.copyfile(args.experiment_config, os.path.join(yaml_args['reporting']['root'],
+  #     os.path.basename(args.experiment_config)))
+  # except shutil.SameFileError:
+  #   tqdm.write('Note, the config being used is the same as that already present in the results dir')
 
 
 if __name__ == '__main__':
@@ -247,6 +257,8 @@ if __name__ == '__main__':
       '(optionally after training a new probe)')
   argp.add_argument('--seed', default=0, type=int,
       help='sets all random seeds for (within-machine) reproducibility')
+  argp.add_argument('--randomize', default=-1, type=int,
+      help='Set to use a randomized mBERT baseline')
   cli_args = argp.parse_args()
   if cli_args.seed:
     np.random.seed(cli_args.seed)
@@ -254,10 +266,16 @@ if __name__ == '__main__':
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-  yaml_args = yaml.load(open(cli_args.experiment_config))
+  yaml_args = yaml.unsafe_load(open(cli_args.experiment_config))
   setup_new_experiment_dir(cli_args, yaml_args, cli_args.results_dir)
+  if 'limit' not in yaml_args['dataset']:
+    yaml_args["dataset"]["limit"] = None
+
+  yaml_args["randomize"] = cli_args.randomize > 0
+
   device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   yaml_args['device'] = device
   yaml_args['train_probe'] = cli_args.train_probe
   yaml_args['did_train'] = (os.path.exists(os.path.join(yaml_args['reporting']['root'], yaml_args['probe']['params_path'])))
+  yaml_args['seed'] = cli_args.seed
   execute_experiment(yaml_args, train_probe=cli_args.train_probe > 0, report_results=cli_args.report_results > 0)

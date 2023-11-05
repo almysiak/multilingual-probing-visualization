@@ -12,6 +12,7 @@ import json
 import sklearn.metrics
 import torch
 import h5py
+import pandas as pd
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -46,6 +47,7 @@ class Reporter:
       dataloader: A DataLoader for a data split
       split_name the string naming the data split: {train,dev,test}
     """
+    results = self.config_values.copy() # TODO values from config, add to self in init?
     self.probe = probe
     self.model = model
     for method in self.reporting_methods:
@@ -55,10 +57,22 @@ class Reporter:
               "methods (reporter.py); skipping".format(method))
           continue
         tqdm.write("Reporting {} on split {}".format(method, split_name))
-        self.reporting_method_dict[method](prediction_batches
-            , dataloader, split_name)
+        try:
+          res = self.reporting_method_dict[method](prediction_batches
+              , dataloader, split_name)
+        except:
+          res = float("nan")
+        if res is not None:
+          results.append(res)
       else:
         tqdm.write('[WARNING] Reporting method not known: {}; skipping'.format(method))
+
+    # append to a CSV file
+    df_data = {x: [y] for x, y in zip(self.csv_columns, results)}
+    df = pd.DataFrame(data=df_data)
+    fname = self.csv_file
+    df.to_csv(fname, index=False, header=not os.path.isfile(fname), mode="a")
+      
 
 
   def write_data(self, prediction_batches, dataset, split_name, save=True):
@@ -354,6 +368,10 @@ class WordPairReporter(Reporter):
         'pca': self.write_pca,
         'unproj_tsne': self.write_unprojected_tsne,
     }
+    self.csv_columns = ["train", "test", "model", "layer", "rank", "limit", "seed", "directory"] + ["dspear", "uuas"]
+    model_str = "mBERTRand" if args["randomize"] else "mBERT" 
+    self.config_values = [args["dataset"]["keys"]["train"], args["dataset"]["keys"]["dev"], model_str, args["model"]["model_layer"], args["probe"]["maximum_rank"], args['dataset']['limit'], args['seed'], args['reporting']['root']]
+    self.csv_file = os.path.join(args['reporting']['csv'], "all_results.csv")
     self.reporting_root = args['reporting']['root']
     self.test_reporting_constraint = {'spearmanr', 'uuas', 'root_acc'}
 
@@ -400,13 +418,15 @@ class WordPairReporter(Reporter):
     mean_spearman_for_each_length = {length: np.mean(lengths_to_spearmanrs[length])
         for length in lengths_to_spearmanrs}
 
-    with open(os.path.join(self.reporting_root, split_name + '.spearmanr' + ('_linear' if use_linear else '')), 'w') as fout:
-      for length in sorted(mean_spearman_for_each_length):
-        fout.write(str(length) + '\t' + str(mean_spearman_for_each_length[length]) + '\n')
+    # with open(os.path.join(self.reporting_root, split_name + '.spearmanr' + ('_linear' if use_linear else '')), 'w') as fout:
+    #   for length in sorted(mean_spearman_for_each_length):
+    #     fout.write(str(length) + '\t' + str(mean_spearman_for_each_length[length]) + '\n')
 
     with open(os.path.join(self.reporting_root, split_name + '.spearmanr-5_50-mean' + ('_linear' if use_linear else '')), 'w') as fout:
       mean = np.mean([mean_spearman_for_each_length[x] for x in range(5,51) if x in mean_spearman_for_each_length])
-      fout.write(str(mean) + '\n')
+      # fout.write(str(mean) + '\n')
+
+    return mean
 
   def report_image_examples(self, prediction_batches, dataset, split_name):
     """Writes predicted and gold distance matrices to disk for the first 20
@@ -499,8 +519,10 @@ class WordPairReporter(Reporter):
         uspan_total += len(gold_edges)
         total_sents += 1
     uuas = uspan_correct / float(uspan_total)
-    with open(os.path.join(self.reporting_root, split_name + '.uuas'), 'w') as fout:
-      fout.write(str(uuas) + '\n')
+    # with open(os.path.join(self.reporting_root, split_name + '.uuas'), 'w') as fout:
+    #   fout.write(str(uuas) + '\n')
+
+    return uuas
 
 
 
@@ -588,15 +610,15 @@ class WordPairReporter(Reporter):
     correct_deps = correct_proj_deps + correct_nonproj_deps
     total_deps = total_proj_deps + total_nonproj_deps
 
-    with open(os.path.join(self.reporting_root, split_name+'-nonproj.info'), 'w') as fout:
-        fout.write(f"Proj: {correct_proj_deps}\n{total_proj_deps}\n{correct_proj_deps/total_proj_deps}\n")
-        if total_nonproj_deps != 0:
-            fout.write(f"Nonproj: {correct_nonproj_deps}\n{total_nonproj_deps}\n{correct_nonproj_deps/total_nonproj_deps}\n")
-        fout.write(f"Total: {correct_deps}\n{total_deps}\n{correct_deps/total_deps}\n")
+    # with open(os.path.join(self.reporting_root, split_name+'-nonproj.info'), 'w') as fout:
+    #     fout.write(f"Proj: {correct_proj_deps}\n{total_proj_deps}\n{correct_proj_deps/total_proj_deps}\n")
+    #     if total_nonproj_deps != 0:
+    #         fout.write(f"Nonproj: {correct_nonproj_deps}\n{total_nonproj_deps}\n{correct_nonproj_deps/total_nonproj_deps}\n")
+    #     fout.write(f"Total: {correct_deps}\n{total_deps}\n{correct_deps/total_deps}\n")
 
-    with open(os.path.join(self.reporting_root, split_name+'-nonproj.acc'), 'w') as fout:
-        if total_nonproj_deps != 0:
-            fout.write(f"{correct_nonproj_deps}\n{total_nonproj_deps}\n{correct_nonproj_deps/total_nonproj_deps}")
+    # with open(os.path.join(self.reporting_root, split_name+'-nonproj.acc'), 'w') as fout:
+    #     if total_nonproj_deps != 0:
+    #         fout.write(f"{correct_nonproj_deps}\n{total_nonproj_deps}\n{correct_nonproj_deps/total_nonproj_deps}")
 
   def print_tikz(self, prediction_edges, gold_edges, words, split_name):
     ''' Turns edge sets on word (nodes) into tikz dependency LaTeX. '''
@@ -676,11 +698,11 @@ class WordPairReporter(Reporter):
                     total_post_adj += 1
                     correct_post_adj += (tuple(sorted([idx, head_idx])) in pred_edges)
 
-    with open(os.path.join(self.reporting_root, split_name+'-adj.info'), 'w') as fout:
-        if total_pre_adj:
-          fout.write(f"Pre: ({correct_pre_adj}/{total_pre_adj})\t{correct_pre_adj/total_pre_adj}\n")
-        if total_post_adj:
-          fout.write(f"Post: ({correct_post_adj}/{total_post_adj})\t{correct_post_adj/total_post_adj}\n")
+    # with open(os.path.join(self.reporting_root, split_name+'-adj.info'), 'w') as fout:
+    #     if total_pre_adj:
+    #       fout.write(f"Pre: ({correct_pre_adj}/{total_pre_adj})\t{correct_pre_adj/total_pre_adj}\n")
+    #     if total_post_adj:
+    #       fout.write(f"Post: ({correct_post_adj}/{total_post_adj})\t{correct_post_adj/total_post_adj}\n")
 
   def print_tikz(self, prediction_edges, gold_edges, words, split_name):
     ''' Turns edge sets on word (nodes) into tikz dependency LaTeX. '''
@@ -716,6 +738,10 @@ class WordReporter(Reporter):
         }
     self.reporting_root = args['reporting']['root']
     self.test_reporting_constraint = {'spearmanr', 'uuas', 'root_acc'}
+    self.csv_columns = ["train", "test", "model", "layer", "rank", "limit", "seed", "directory"] + ["spearmanr"]
+    model_str = "mBERTRand" if args["randomize"] else "mBERT" 
+    self.config_values = [args["keys"]["train"], args["keys"]["dev"], model_str, args["model"]["model_layer"], args["probe"]["maximum_rank"], args['dataset']['limit'], args['seed'], args['reporting']['root']] # TODO add limit and seed
+    self.csv_file = os.path.join(args['reporting']['csv'], "single_all_results.csv")
 
   def report_spearmanr(self, prediction_batches, dataset, split_name):
     """Writes the Spearman correlations between predicted and true depths.
@@ -755,6 +781,8 @@ class WordReporter(Reporter):
     with open(os.path.join(self.reporting_root, split_name + '.spearmanr-5_50-mean'), 'w') as fout:
       mean = np.mean([mean_spearman_for_each_length[x] for x in range(5,51) if x in mean_spearman_for_each_length])
       fout.write(str(mean) + '\n')
+
+    return mean
 
   def report_root_acc(self, prediction_batches, dataset, split_name):
     """Computes the root prediction accuracy and writes to disk.
