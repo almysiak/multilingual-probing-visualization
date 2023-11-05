@@ -57,8 +57,11 @@ class Reporter:
               "methods (reporter.py); skipping".format(method))
           continue
         tqdm.write("Reporting {} on split {}".format(method, split_name))
-        res = self.reporting_method_dict[method](prediction_batches
-            , dataloader, split_name)
+        try:
+          res = self.reporting_method_dict[method](prediction_batches
+              , dataloader, split_name)
+        except:
+          res = float("nan")
         if res is not None:
           results.append(res)
       else:
